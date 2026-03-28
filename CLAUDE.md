@@ -14,6 +14,7 @@ Encrypted secret storage backed by GitHub Gists.
 - The script must pass `ruff`, `mypy`, and `pytest` before each commit
 - Every major function must have a unit test
 - Keep it as a single runnable script file
+- Update `doc/` with every major change (architecture, data flow, new commands, etc.)
 
 ## Commands
 
