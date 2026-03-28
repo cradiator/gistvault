@@ -3,58 +3,13 @@
 # requires-python = ">=3.9"
 # dependencies = [
 #     "cryptography>=42.0",
+#     "typer>=0.9.0",
 # ]
 # ///
-"""
-Encrypted secret storage backed by GitHub Gists.
-
-Commands:
-    encrypt   Encrypt a local file.
-    decrypt   Decrypt a local encrypted file.
-    upload    Encrypt and upload a file to a GitHub Gist.
-    download  Download and decrypt a file from a GitHub Gist.
-    list      List all encrypted files stored in GitHub Gists.
-    delete    Delete an encrypted file from GitHub Gists.
-
-Usage examples:
-    # Encrypt a file locally
-    ./gistvault.py encrypt -p mypass -i secret.json -o secret.enc
-
-    # Decrypt a local file (explicit output)
-    ./gistvault.py decrypt -p mypass -i secret.enc -o secret.json
-
-    # Decrypt using the saved output path (prompts for confirmation)
-    ./gistvault.py decrypt -p mypass -i secret.enc
-
-    # Upload a file (encrypted as secret.json.enc in a secret gist)
-    ./gistvault.py upload -p mypass -i secret.json
-
-    # Re-upload updates the existing gist automatically
-    ./gistvault.py upload -p mypass -i secret.json
-
-    # List all stored files
-    ./gistvault.py list
-
-    # Download by name (prompts for output path if --output omitted)
-    ./gistvault.py download -p mypass -n secret.json
-    ./gistvault.py download -p mypass -n secret.json -o ~/restored.json
-
-    # Delete a stored file (prompts for confirmation)
-    ./gistvault.py delete -n secret.json
-
-Notes:
-    - If --password is omitted, you will be prompted securely.
-    - upload/download/list/delete require GISTVAULT_TOKEN env var
-      (GitHub personal access token with 'gist' scope).
-    - Each uploaded file is stored as a separate secret (unlisted) gist.
-    - The gist filename is <input_name>.enc (e.g. secret.json -> secret.json.enc).
-    - Encrypted files embed the original input/output paths. When downloading
-      without --output, the saved path is shown for confirmation.
-"""
+"""Encrypted secret storage backed by GitHub Gists."""
 
 from __future__ import annotations
 
-import argparse
 import base64
 import getpass
 import json
@@ -65,7 +20,9 @@ import urllib.request
 import urllib.error
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any, Optional
+
+import typer
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
@@ -314,99 +271,92 @@ def decrypt(password: str, in_file: Path, dst: Path | None) -> None:
     print(f"Decrypted {in_file} -> {dst}")
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Encrypted secret storage backed by GitHub Gists.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "commands:\n"
-            "  encrypt   Encrypt a local file             (requires -i, -o)\n"
-            "  decrypt   Decrypt a local encrypted file   (requires -i; -o optional)\n"
-            "  upload    Encrypt and push to GitHub Gist   (requires -i; --new-name optional)\n"
-            "  download  Pull from GitHub Gist and decrypt (requires -n; -o optional)\n"
-            "  list      List all encrypted gist entries\n"
-            "  delete    Delete an encrypted gist entry    (requires -n)\n"
-            "  rename    Rename a gist entry               (requires -n, --new-name)\n"
-            "\n"
-            "environment:\n"
-            "  GISTVAULT_TOKEN  GitHub PAT with 'gist' scope (required for gist commands)"
-        ),
-    )
-    p.add_argument("option", nargs="?", default=None,
-                   choices=["encrypt", "decrypt", "upload", "download", "list", "delete", "rename"],
-                   metavar="command",
-                   help="{encrypt,decrypt,upload,download,list,delete,rename}")
-    p.add_argument("-p", "--password",
-                   help="encryption password (omit to be prompted securely)")
-    p.add_argument("-i", "--input", type=Path, default=None,
-                   help="input file path (encrypt/upload: plaintext source; "
-                        "decrypt: encrypted file)")
-    p.add_argument("-o", "--output", type=Path, default=None,
-                   help="output file path (encrypt: encrypted file; "
-                        "decrypt/download: plaintext destination)")
-    p.add_argument("-n", "--name", default=None,
-                   help="gist entry name for download/delete/rename "
-                        "(e.g. 'secret.json' or 'secret.json.enc')")
-    p.add_argument("--new-name", default=None,
-                   help="new name (upload: override gist filename; "
-                        "rename: target name)")
-    args = p.parse_args()
+app = typer.Typer(
+    help="Encrypted secret storage backed by GitHub Gists.\n\n"
+         "Environment: GISTVAULT_TOKEN — GitHub PAT with 'gist' scope "
+         "(required for gist commands).",
+    no_args_is_help=True,
+)
 
-    if not args.option:
-        p.print_help()
-        return
-
-    if args.option == "list":
-        list_gists()
-        return
-    if args.option == "delete":
-        if not args.name:
-            p.error("delete requires --name")
-        delete(args.name)
-        return
-    if args.option == "rename":
-        if not args.name or not args.new_name:
-            p.error("rename requires --name and --new-name")
-        rename(args.name, args.new_name)
-        return
-
-    # Validate required params before prompting for password
-    missing: list[str] = []
-    if args.option == "encrypt":
-        if not args.input:
-            missing.append("--input")
-        if not args.output:
-            missing.append("--output")
-    elif args.option == "decrypt":
-        if not args.input:
-            missing.append("--input")
-    elif args.option == "upload":
-        if not args.input:
-            missing.append("--input")
-    elif args.option == "download":
-        if not args.name:
-            missing.append("--name")
-    if missing:
-        p.error(f"{args.option} requires {', '.join(missing)}")
-
-    password = args.password or getpass.getpass("Password: ")
-    if not password:
+def _get_password(password: str | None, confirm: bool = False) -> str:
+    if password is not None:
+        return password
+    pw = getpass.getpass("Password: ")
+    if not pw:
         sys.exit("Password cannot be empty.")
-
-    if args.option in ("encrypt", "upload") and not args.password:
-        confirm = getpass.getpass("Confirm password: ")
-        if password != confirm:
+    if confirm:
+        c = getpass.getpass("Confirm password: ")
+        if pw != c:
             sys.exit("Passwords do not match.")
+    return pw
 
-    if args.option == "encrypt":
-        encrypt(password, args.output, args.input)
-    elif args.option == "decrypt":
-        decrypt(password, args.input, args.output)
-    elif args.option == "upload":
-        upload(password, args.input, args.new_name)
-    elif args.option == "download":
-        download(password, args.name, args.output)
+
+@app.command(name="encrypt")
+def cmd_encrypt(
+    input: Annotated[Path, typer.Option("--input", "-i", help="Plaintext source file.")],
+    output: Annotated[Path, typer.Option("--output", "-o", help="Encrypted output file.")],
+    password: Annotated[Optional[str], typer.Option("--password", "-p", help="Encryption password (omit to be prompted).")] = None,
+) -> None:
+    """Encrypt a local file."""
+    pw = _get_password(password, confirm=True)
+    encrypt(pw, output, input)
+
+
+@app.command(name="decrypt")
+def cmd_decrypt(
+    input: Annotated[Path, typer.Option("--input", "-i", help="Encrypted file to decrypt.")],
+    output: Annotated[Optional[Path], typer.Option("--output", "-o", help="Output path (uses saved path if omitted).")] = None,
+    password: Annotated[Optional[str], typer.Option("--password", "-p", help="Encryption password (omit to be prompted).")] = None,
+) -> None:
+    """Decrypt a local encrypted file."""
+    pw = _get_password(password)
+    decrypt(pw, input, output)
+
+
+@app.command(name="upload")
+def cmd_upload(
+    input: Annotated[Path, typer.Option("--input", "-i", help="Plaintext file to encrypt and upload.")],
+    password: Annotated[Optional[str], typer.Option("--password", "-p", help="Encryption password (omit to be prompted).")] = None,
+    new_name: Annotated[Optional[str], typer.Option("--new-name", help="Override gist filename.")] = None,
+) -> None:
+    """Encrypt and upload a file to a GitHub Gist."""
+    pw = _get_password(password, confirm=True)
+    upload(pw, input, new_name)
+
+
+@app.command(name="download")
+def cmd_download(
+    name: Annotated[str, typer.Option("--name", "-n", help="Gist entry name.")],
+    output: Annotated[Optional[Path], typer.Option("--output", "-o", help="Output path (uses saved path if omitted).")] = None,
+    password: Annotated[Optional[str], typer.Option("--password", "-p", help="Encryption password (omit to be prompted).")] = None,
+) -> None:
+    """Download and decrypt a file from a GitHub Gist."""
+    pw = _get_password(password)
+    download(pw, name, output)
+
+
+@app.command(name="list")
+def cmd_list() -> None:
+    """List all encrypted files stored in GitHub Gists."""
+    list_gists()
+
+
+@app.command(name="delete")
+def cmd_delete(
+    name: Annotated[str, typer.Option("--name", "-n", help="Gist entry name to delete.")],
+) -> None:
+    """Delete an encrypted file from GitHub Gists."""
+    delete(name)
+
+
+@app.command(name="rename")
+def cmd_rename(
+    name: Annotated[str, typer.Option("--name", "-n", help="Current gist entry name.")],
+    new_name: Annotated[str, typer.Option("--new-name", help="New name for the gist entry.")],
+) -> None:
+    """Rename a gist entry."""
+    rename(name, new_name)
 
 
 if __name__ == "__main__":
-    main()
+    app()

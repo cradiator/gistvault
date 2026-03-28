@@ -57,6 +57,7 @@ rename    Rename a gist entry               (-n, --new-name required)
 - **Password confirmation**: encrypt/upload prompt twice when password is entered interactively. Skipped when using `-p` flag (for scripting).
 - **Gist discovery**: gists are found by matching `description == "gistvault"` and the filename. No IDs to memorize.
 - **Backup on overwrite**: `_write_output` creates a timestamped `.bak` before overwriting existing files
+- **CLI framework**: typer with subcommands — each command declares its own required/optional options via `Annotated` type hints
 - **No external HTTP library**: uses Python stdlib `urllib` for GitHub API calls
 - **Crypto**: Scrypt KDF (n=2^17, r=8, p=1) + Fernet (AES-128-CBC + HMAC-SHA256)
 

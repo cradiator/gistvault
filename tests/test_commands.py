@@ -254,41 +254,28 @@ def test_rename_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
         gistvault.rename("nope.json", "new.json")
 
 
-def test_password_confirmation_mismatch(
-    sample_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_get_password_confirmation_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     passwords = iter(["mypass", "different"])
     monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
-    enc = tmp_path / "out.enc"
-    monkeypatch.setattr(
-        "sys.argv",
-        ["gistvault.py", "encrypt", "-i", str(sample_file), "-o", str(enc)],
-    )
     with pytest.raises(SystemExit):
-        gistvault.main()
+        gistvault._get_password(None, confirm=True)
 
 
-def test_password_confirmation_match(
-    sample_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_get_password_confirmation_match(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     passwords = iter(["mypass", "mypass"])
     monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
-    enc = tmp_path / "out.enc"
-    monkeypatch.setattr(
-        "sys.argv",
-        ["gistvault.py", "encrypt", "-i", str(sample_file), "-o", str(enc)],
-    )
-    gistvault.main()
-    assert enc.exists()
+    assert gistvault._get_password(None, confirm=True) == "mypass"
 
 
-def test_password_flag_skips_confirmation(
-    sample_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    enc = tmp_path / "out.enc"
-    monkeypatch.setattr(
-        "sys.argv",
-        ["gistvault.py", "encrypt", "-p", "mypass", "-i", str(sample_file), "-o", str(enc)],
-    )
-    gistvault.main()
-    assert enc.exists()
+def test_get_password_flag_skips_confirmation() -> None:
+    assert gistvault._get_password("mypass", confirm=True) == "mypass"
+
+
+def test_get_password_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("getpass.getpass", lambda _: "")
+    with pytest.raises(SystemExit):
+        gistvault._get_password(None)

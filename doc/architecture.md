@@ -8,7 +8,7 @@ gistvault is a single-script CLI tool that encrypts files locally and syncs them
 
 ```
 gistvault.py (single file)
-├── CLI layer          (main, argparse)
+├── CLI layer          (typer app, subcommands)
 ├── Crypto layer       (derive_key, _encrypt_blob, _decrypt_blob)
 ├── Path helpers       (_compact_path, _expand_path)
 ├── File I/O layer     (_read_source, _write_output)
@@ -18,7 +18,7 @@ gistvault.py (single file)
 
 ### CLI Layer
 
-`main()` parses arguments and dispatches to the appropriate command function. Password is prompted securely via `getpass` if not provided via `--password`.
+Uses [typer](https://typer.tiangolo.com/) with subcommands. Each command is a decorated function (`cmd_encrypt`, `cmd_decrypt`, etc.) that validates its own required options via typer's `Annotated[T, typer.Option(...)]` declarations. Password is prompted securely via `getpass` if not provided via `--password`. The `_get_password` helper handles password prompting and confirmation (for encrypt/upload).
 
 ### Crypto Layer
 
@@ -142,6 +142,6 @@ GitHub Gist API ──▶ _find_all_gists ──▶ print filename, gist ID, upd
 
 ## Dependencies
 
-- **Runtime**: `cryptography` (Fernet + Scrypt) — declared in PEP 723 inline metadata
+- **Runtime**: `cryptography` (Fernet + Scrypt), `typer` (CLI framework) — declared in PEP 723 inline metadata
 - **Dev**: `pytest`, `mypy`, `ruff` — declared in `pyproject.toml`
 - **No external HTTP library**: uses Python stdlib `urllib`
