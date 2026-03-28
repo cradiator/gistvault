@@ -207,9 +207,9 @@ def _write_output(dst: Path, plaintext: bytes) -> None:
     dst.chmod(0o600)
 
 
-def upload(password: str, src: Path) -> None:
+def upload(password: str, src: Path, name: str | None = None) -> None:
     plaintext = _read_source(src)
-    filename = _gist_filename(src.name)
+    filename = _gist_filename(name or src.name)
     blob = _encrypt_blob(password, plaintext, input_path=src, output_path=src)
     gh_token = _gist_token()
     existing = _find_gist(gh_token, filename)
@@ -322,7 +322,7 @@ def main() -> None:
             "commands:\n"
             "  encrypt   Encrypt a local file             (requires -i, -o)\n"
             "  decrypt   Decrypt a local encrypted file   (requires -i; -o optional)\n"
-            "  upload    Encrypt and push to GitHub Gist   (requires -i)\n"
+            "  upload    Encrypt and push to GitHub Gist   (requires -i; --new-name optional)\n"
             "  download  Pull from GitHub Gist and decrypt (requires -n; -o optional)\n"
             "  list      List all encrypted gist entries\n"
             "  delete    Delete an encrypted gist entry    (requires -n)\n"
@@ -347,7 +347,8 @@ def main() -> None:
                    help="gist entry name for download/delete/rename "
                         "(e.g. 'secret.json' or 'secret.json.enc')")
     p.add_argument("--new-name", default=None,
-                   help="new name for rename command")
+                   help="new name (upload: override gist filename; "
+                        "rename: target name)")
     args = p.parse_args()
 
     if args.option == "list":
@@ -384,7 +385,7 @@ def main() -> None:
     elif args.option == "upload":
         if not args.input:
             p.error("upload requires --input")
-        upload(password, args.input)
+        upload(password, args.input, args.new_name)
     elif args.option == "download":
         if not args.name:
             p.error("download requires --name")

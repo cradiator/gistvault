@@ -85,6 +85,23 @@ def test_upload_creates_new(
     assert calls[0][0] == "POST"
 
 
+def test_upload_with_new_name(
+    sample_file: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fake_request(
+        method: str, url: str, token: str, data: dict[str, Any] | None = None
+    ) -> dict[str, str]:
+        return {"id": "new123"}
+
+    monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
+    monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: None)
+    monkeypatch.setattr(gistvault, "_github_request", fake_request)
+
+    gistvault.upload("pw", sample_file, name="custom.json")
+    out = capsys.readouterr().out
+    assert "custom.json.enc" in out
+
+
 def test_upload_updates_existing(
     sample_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
