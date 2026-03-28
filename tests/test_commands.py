@@ -164,3 +164,44 @@ def test_download_aborts_on_no(
 
     with pytest.raises(SystemExit):
         gistvault.download("pw", "orig.json", None)
+
+
+def test_delete_confirms_and_deletes(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_request(
+        method: str, url: str, token: str, data: dict[str, Any] | None = None
+    ) -> dict[str, str]:
+        calls.append((method, url))
+        return {}
+
+    monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
+    monkeypatch.setattr(
+        gistvault, "_find_gist",
+        lambda *a, **kw: {"id": "abc123", "url": "https://api.github.com/gists/abc123"},
+    )
+    monkeypatch.setattr(gistvault, "_github_request", fake_request)
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+
+    gistvault.delete("secret.json")
+    assert calls[0][0] == "DELETE"
+
+
+def test_delete_aborts_on_no(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
+    monkeypatch.setattr(
+        gistvault, "_find_gist",
+        lambda *a, **kw: {"id": "abc123", "url": "https://api.github.com/gists/abc123"},
+    )
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+
+    with pytest.raises(SystemExit):
+        gistvault.delete("secret.json")
+
+
+def test_delete_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
+    monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: None)
+
+    with pytest.raises(SystemExit):
+        gistvault.delete("nonexistent.json")

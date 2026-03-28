@@ -13,7 +13,7 @@ gistvault.py (single file)
 ├── Path helpers       (_compact_path, _expand_path)
 ├── File I/O layer     (_read_source, _write_output)
 ├── GitHub Gist layer  (_gist_token, _github_request, _find_gist, _find_all_gists)
-└── Commands           (encrypt, decrypt, upload, download, list_gists)
+└── Commands           (encrypt, decrypt, upload, download, list_gists, delete)
 ```
 
 ### CLI Layer
@@ -118,6 +118,12 @@ GitHub Gist API ──▶ _decrypt_blob ──▶ envelope
 ```
 GitHub Gist API ──▶ _find_all_gists ──▶ print filename, gist ID, updated date
 (filter by description)
+```
+
+### delete
+
+```
+--name ──▶ _find_gist ──▶ confirm prompt ──▶ DELETE gist via API
 ```
 
 ## Security Model

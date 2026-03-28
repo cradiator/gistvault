@@ -79,7 +79,10 @@ def _github_request(method: str, url: str, token: str,
     })
     try:
         with urllib.request.urlopen(req) as resp:
-            return json.loads(resp.read())
+            body_bytes = resp.read()
+            if not body_bytes:
+                return {}
+            return json.loads(body_bytes)
     except urllib.error.HTTPError as e:
         sys.exit(f"GitHub API error {e.code}: {e.read().decode()}")
 
@@ -232,6 +235,19 @@ def list_gists() -> None:
             print(f"  {f}  (gist: {g['id']}, updated: {updated})")
 
 
+def delete(name: str) -> None:
+    filename = _gist_filename(name)
+    gh_token = _gist_token()
+    gist = _find_gist(gh_token, filename)
+    if not gist:
+        sys.exit(f"No gist found with file '{filename}'.")
+    confirm = input(f"Delete {filename} (gist: {gist['id']})? [y/N] ").strip().lower()
+    if confirm != "y":
+        sys.exit("Aborted.")
+    _github_request("DELETE", gist["url"], gh_token)
+    print(f"Deleted {filename} (gist: {gist['id']})")
+
+
 def encrypt(password: str, out_file: Path, src: Path) -> None:
     plaintext = _read_source(src)
     blob = _encrypt_blob(password, plaintext, input_path=src, output_path=src)
@@ -259,7 +275,7 @@ def decrypt(password: str, in_file: Path, dst: Path | None) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Encrypted secret storage backed by GitHub Gists.")
-    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download", "list"])
+    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download", "list", "delete"])
     p.add_argument("-p", "--password",
                    help="Password (omit to be prompted securely)")
     p.add_argument("-i", "--input", type=Path, default=None,
@@ -271,12 +287,17 @@ def main() -> None:
                         "encrypt: encrypted file. "
                         "decrypt/download: plaintext destination.")
     p.add_argument("-n", "--name", default=None,
-                   help="Gist filename (for download). "
+                   help="Gist filename (for download/delete). "
                         "e.g. 'secret.json' or 'secret.json.enc'.")
     args = p.parse_args()
 
     if args.option == "list":
         list_gists()
+        return
+    if args.option == "delete":
+        if not args.name:
+            p.error("delete requires --name")
+        delete(args.name)
         return
 
     password = args.password or getpass.getpass("Password: ")
