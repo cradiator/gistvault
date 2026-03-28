@@ -97,20 +97,38 @@ def _find_gist(token: str, full: bool = False) -> dict[str, Any] | None:
         page += 1
 
 
+def _compact_path(p: Path) -> str:
+    try:
+        return "~/" + str(p.resolve().relative_to(Path.home()))
+    except ValueError:
+        return str(p.resolve())
+
+
+def _expand_path(s: str) -> Path:
+    return Path(os.path.expanduser(s))
+
+
 def _read_source(src: Path) -> bytes:
     if not src.exists():
         sys.exit(f"Source file not found: {src}")
     return src.read_bytes()
 
 
-def _encrypt_blob(password: str, plaintext: bytes) -> str:
+def _encrypt_blob(password: str, plaintext: bytes,
+                  input_path: Path, output_path: Path) -> str:
+    envelope = json.dumps({
+        "input": _compact_path(input_path),
+        "output": _compact_path(output_path),
+        "timestamp": datetime.now().isoformat(),
+        "data": base64.b64encode(plaintext).decode("ascii"),
+    }).encode("utf-8")
     salt = os.urandom(SALT_LEN)
     key = derive_key(password, salt)
-    token = Fernet(key).encrypt(plaintext)
+    token = Fernet(key).encrypt(envelope)
     return base64.b64encode(salt + token).decode("ascii")
 
 
-def _decrypt_blob(password: str, blob_text: str) -> bytes:
+def _decrypt_blob(password: str, blob_text: str) -> dict[str, str]:
     try:
         raw = base64.b64decode(blob_text.strip(), validate=True)
     except (ValueError, UnicodeDecodeError):
@@ -120,9 +138,11 @@ def _decrypt_blob(password: str, blob_text: str) -> bytes:
     salt, token = raw[:SALT_LEN], raw[SALT_LEN:]
     key = derive_key(password, salt)
     try:
-        return Fernet(key).decrypt(token)
+        decrypted = Fernet(key).decrypt(token)
     except InvalidToken:
         sys.exit("Decryption failed: wrong password or corrupted data.")
+    envelope: dict[str, str] = json.loads(decrypted)
+    return envelope
 
 
 def _write_output(dst: Path, plaintext: bytes) -> None:
@@ -137,7 +157,8 @@ def _write_output(dst: Path, plaintext: bytes) -> None:
 
 
 def upload(password: str, src: Path) -> None:
-    blob = _encrypt_blob(password, _read_source(src))
+    plaintext = _read_source(src)
+    blob = _encrypt_blob(password, plaintext, input_path=src, output_path=src)
     gh_token = _gist_token()
     existing = _find_gist(gh_token)
     payload: dict[str, Any] = {
@@ -153,28 +174,47 @@ def upload(password: str, src: Path) -> None:
         print(f"Created gist {result['id']}")
 
 
-def download(password: str, dst: Path) -> None:
+def download(password: str, dst: Path | None) -> None:
     gh_token = _gist_token()
     gist = _find_gist(gh_token, full=True)
     if not gist:
         sys.exit(f"No gist found with file '{GIST_FILENAME}'.")
-    plaintext = _decrypt_blob(password, gist["files"][GIST_FILENAME]["content"])
-    _write_output(dst, plaintext)
+    envelope = _decrypt_blob(password, gist["files"][GIST_FILENAME]["content"])
+    data = base64.b64decode(envelope["data"])
+    if dst is None:
+        saved_output = envelope.get("output", "")
+        if not saved_output:
+            sys.exit("No output path saved in gist and --output not provided.")
+        confirm = input(f"Decrypt to {saved_output}? [y/N] ").strip().lower()
+        if confirm != "y":
+            sys.exit("Aborted.")
+        dst = _expand_path(saved_output)
+    _write_output(dst, data)
     print(f"Decrypted gist -> {dst}")
 
 
 def encrypt(password: str, out_file: Path, src: Path) -> None:
-    blob = _encrypt_blob(password, _read_source(src))
+    plaintext = _read_source(src)
+    blob = _encrypt_blob(password, plaintext, input_path=src, output_path=src)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(blob + "\n")
     print(f"Encrypted {src} -> {out_file}")
 
 
-def decrypt(password: str, in_file: Path, dst: Path) -> None:
+def decrypt(password: str, in_file: Path, dst: Path | None) -> None:
     if not in_file.exists():
         sys.exit(f"Encrypted file not found: {in_file}")
-    plaintext = _decrypt_blob(password, in_file.read_text())
-    _write_output(dst, plaintext)
+    envelope = _decrypt_blob(password, in_file.read_text())
+    data = base64.b64decode(envelope["data"])
+    if dst is None:
+        saved_output = envelope.get("output", "")
+        if not saved_output:
+            sys.exit("No output path saved in file and --output not provided.")
+        confirm = input(f"Decrypt to {saved_output}? [y/N] ").strip().lower()
+        if confirm != "y":
+            sys.exit("Aborted.")
+        dst = _expand_path(saved_output)
+    _write_output(dst, data)
     print(f"Decrypted {in_file} -> {dst}")
 
 
@@ -202,16 +242,14 @@ def main() -> None:
             p.error("encrypt requires both --input and --output")
         encrypt(password, args.output, args.input)
     elif args.option == "decrypt":
-        if not args.input or not args.output:
-            p.error("decrypt requires both --input and --output")
+        if not args.input:
+            p.error("decrypt requires --input")
         decrypt(password, args.input, args.output)
     elif args.option == "upload":
         if not args.input:
             p.error("upload requires --input")
         upload(password, args.input)
     elif args.option == "download":
-        if not args.output:
-            p.error("download requires --output")
         download(password, args.output)
 
 

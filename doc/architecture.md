@@ -10,6 +10,7 @@ gistvault is a single-script CLI tool that encrypts files locally and syncs them
 gistvault.py (single file)
 ├── CLI layer          (main, argparse)
 ├── Crypto layer       (derive_key, _encrypt_blob, _decrypt_blob)
+├── Path helpers       (_compact_path, _expand_path)
 ├── File I/O layer     (_read_source, _write_output)
 ├── GitHub Gist layer  (_gist_token, _github_request, _find_gist)
 └── Commands           (encrypt, decrypt, upload, download)
@@ -36,6 +37,16 @@ Password + Random Salt (16 bytes)
 
 - **Key derivation**: Scrypt with ~128MB memory cost, resistant to GPU/ASIC brute-force
 - **Encryption**: Fernet (symmetric, authenticated encryption)
+- **Encrypted envelope**: the plaintext encrypted by Fernet is a JSON object containing metadata and file data:
+  ```json
+  {
+    "input": "~/path/to/source",
+    "output": "~/path/to/destination",
+    "timestamp": "2026-03-28T05:35:00",
+    "data": "<base64-encoded file content>"
+  }
+  ```
+  Paths under `$HOME` are stored as `~/...` for portability.
 - **Storage format**: `base64(salt || fernet_token)` — salt is prepended so decryption is self-contained
 
 ### File I/O Layer
@@ -64,7 +75,17 @@ plaintext file ──▶ _read_source ──▶ _encrypt_blob ──▶ base64 t
 ### decrypt (local)
 
 ```
-base64 text file ──▶ _decrypt_blob ──▶ _write_output ──▶ plaintext file
+base64 text file ──▶ _decrypt_blob ──▶ envelope
+                                         │
+                         ┌───────────────┤
+                         ▼               ▼
+                   (if --output)   (if no --output)
+                         │         read saved output path
+                         │         prompt user for confirmation
+                         │               │
+                         └───────┬───────┘
+                                 ▼
+                          _write_output ──▶ plaintext file
 ```
 
 ### upload (to gist)
@@ -77,8 +98,17 @@ plaintext file ──▶ _read_source ──▶ _encrypt_blob ──▶ GitHub G
 ### download (from gist)
 
 ```
-GitHub Gist API ──▶ _decrypt_blob ──▶ _write_output ──▶ plaintext file
-(find by filename)
+GitHub Gist API ──▶ _decrypt_blob ──▶ envelope
+(find by filename)                       │
+                         ┌───────────────┤
+                         ▼               ▼
+                   (if --output)   (if no --output)
+                         │         read saved output path
+                         │         prompt user for confirmation
+                         │               │
+                         └───────┬───────┘
+                                 ▼
+                          _write_output ──▶ plaintext file
 ```
 
 ## Security Model

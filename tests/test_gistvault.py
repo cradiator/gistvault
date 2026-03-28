@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 import stat
 from pathlib import Path
@@ -30,15 +31,43 @@ class TestDeriveKey:
         assert k1 != k2
 
 
-class TestEncryptDecryptBlob:
-    def test_roundtrip(self) -> None:
-        plaintext = b"hello world"
-        blob = gistvault._encrypt_blob("mypass", plaintext)
-        result = gistvault._decrypt_blob("mypass", blob)
-        assert result == plaintext
+class TestCompactExpandPath:
+    def test_compact_home_path(self) -> None:
+        p = Path.home() / "Documents" / "secret.json"
+        assert gistvault._compact_path(p) == "~/Documents/secret.json"
 
-    def test_wrong_password(self) -> None:
-        blob = gistvault._encrypt_blob("right", b"secret")
+    def test_compact_non_home_path(self) -> None:
+        p = Path("/etc/config.json")
+        result = gistvault._compact_path(p)
+        assert not result.startswith("~/")
+        assert result == str(p.resolve())
+
+    def test_expand_tilde(self) -> None:
+        result = gistvault._expand_path("~/Documents/secret.json")
+        assert result == Path.home() / "Documents" / "secret.json"
+
+    def test_expand_absolute(self) -> None:
+        result = gistvault._expand_path("/etc/config.json")
+        assert result == Path("/etc/config.json")
+
+
+class TestEncryptDecryptBlob:
+    def test_roundtrip(self, tmp_path: Path) -> None:
+        src = tmp_path / "test.json"
+        dst = tmp_path / "out.json"
+        plaintext = b"hello world"
+        blob = gistvault._encrypt_blob("mypass", plaintext,
+                                       input_path=src, output_path=dst)
+        envelope = gistvault._decrypt_blob("mypass", blob)
+        assert base64.b64decode(envelope["data"]) == plaintext
+        assert "input" in envelope
+        assert "output" in envelope
+        assert "timestamp" in envelope
+
+    def test_wrong_password(self, tmp_path: Path) -> None:
+        blob = gistvault._encrypt_blob("right", b"secret",
+                                       input_path=tmp_path / "a",
+                                       output_path=tmp_path / "b")
         with pytest.raises(SystemExit):
             gistvault._decrypt_blob("wrong", blob)
 
@@ -47,8 +76,6 @@ class TestEncryptDecryptBlob:
             gistvault._decrypt_blob("pass", "not-valid-base64!!!")
 
     def test_too_short(self) -> None:
-        import base64
-
         short = base64.b64encode(b"\x00" * gistvault.SALT_LEN).decode()
         with pytest.raises(SystemExit):
             gistvault._decrypt_blob("pass", short)
@@ -117,6 +144,37 @@ class TestEncryptDecryptFile:
         with pytest.raises(SystemExit):
             gistvault.encrypt("pw", tmp_path / "out.enc", tmp_path / "nope.json")
 
+    def test_decrypt_uses_saved_output(self, tmp_path: Path) -> None:
+        src = tmp_path / "plain.json"
+        src.write_text("secret data")
+        enc = tmp_path / "encrypted.enc"
+        gistvault.encrypt("pw", enc, src)
+
+        with patch("builtins.input", return_value="y"):
+            gistvault.decrypt("pw", enc, None)
+        assert src.read_text() == "secret data"
+
+    def test_decrypt_aborts_on_no(self, tmp_path: Path) -> None:
+        src = tmp_path / "plain.json"
+        src.write_text("secret data")
+        enc = tmp_path / "encrypted.enc"
+        gistvault.encrypt("pw", enc, src)
+
+        with patch("builtins.input", return_value="n"), pytest.raises(SystemExit):
+            gistvault.decrypt("pw", enc, None)
+
+    def test_envelope_contains_metadata(self, tmp_path: Path) -> None:
+        src = tmp_path / "plain.json"
+        src.write_text("data")
+        enc = tmp_path / "encrypted.enc"
+        gistvault.encrypt("pw", enc, src)
+
+        envelope = gistvault._decrypt_blob("pw", enc.read_text())
+        assert "input" in envelope
+        assert "output" in envelope
+        assert "timestamp" in envelope
+        assert "data" in envelope
+
 
 class TestGistToken:
     def test_returns_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -175,8 +233,7 @@ class TestUpload:
         src.write_text('{"key": "val"}')
         gistvault.upload("pw", src)
         mock_req.assert_called_once()
-        _, kwargs = mock_req.call_args
-        assert kwargs is not None or mock_req.call_args[0][0] == "POST"
+        assert mock_req.call_args[0][0] == "POST"
 
     @patch("gistvault._find_gist", return_value={"id": "exist", "url": "http://x"})
     @patch("gistvault._github_request", return_value={})
@@ -198,11 +255,37 @@ class TestDownload:
             gistvault.download("pw", tmp_path / "out.json")
 
     @patch("gistvault._gist_token", return_value="tok")
-    def test_downloads(self, _tok: MagicMock, tmp_path: Path) -> None:
+    def test_downloads_with_output(self, _tok: MagicMock, tmp_path: Path) -> None:
+        src = tmp_path / "orig.json"
         plaintext = b'{"secret": true}'
-        blob = gistvault._encrypt_blob("pw", plaintext)
+        blob = gistvault._encrypt_blob("pw", plaintext,
+                                       input_path=src, output_path=src)
         gist = {"files": {gistvault.GIST_FILENAME: {"content": blob}}}
         with patch("gistvault._find_gist", return_value=gist):
             dst = tmp_path / "out.json"
             gistvault.download("pw", dst)
             assert dst.read_bytes() == plaintext
+
+    @patch("gistvault._gist_token", return_value="tok")
+    def test_downloads_with_confirmation(self, _tok: MagicMock, tmp_path: Path) -> None:
+        src = tmp_path / "orig.json"
+        plaintext = b'{"secret": true}'
+        blob = gistvault._encrypt_blob("pw", plaintext,
+                                       input_path=src, output_path=src)
+        gist = {"files": {gistvault.GIST_FILENAME: {"content": blob}}}
+        with patch("gistvault._find_gist", return_value=gist), \
+             patch("builtins.input", return_value="y"):
+            gistvault.download("pw", None)
+            assert src.read_bytes() == plaintext
+
+    @patch("gistvault._gist_token", return_value="tok")
+    def test_downloads_abort_on_no(self, _tok: MagicMock, tmp_path: Path) -> None:
+        src = tmp_path / "orig.json"
+        plaintext = b'{"secret": true}'
+        blob = gistvault._encrypt_blob("pw", plaintext,
+                                       input_path=src, output_path=src)
+        gist = {"files": {gistvault.GIST_FILENAME: {"content": blob}}}
+        with patch("gistvault._find_gist", return_value=gist), \
+             patch("builtins.input", return_value="n"), \
+             pytest.raises(SystemExit):
+            gistvault.download("pw", None)
