@@ -65,22 +65,22 @@ class TestReadSource:
             gistvault._read_source(tmp_path / "missing.json")
 
 
-class TestWriteAdc:
+class TestWriteOutput:
     def test_writes_file(self, tmp_path: Path) -> None:
         dst = tmp_path / "out.json"
-        gistvault._write_adc(dst, b"content")
+        gistvault._write_output(dst, b"content")
         assert dst.read_bytes() == b"content"
         assert stat.S_IMODE(dst.stat().st_mode) == 0o600
 
     def test_creates_parent_dirs(self, tmp_path: Path) -> None:
         dst = tmp_path / "a" / "b" / "out.json"
-        gistvault._write_adc(dst, b"content")
+        gistvault._write_output(dst, b"content")
         assert dst.read_bytes() == b"content"
 
     def test_backs_up_existing(self, tmp_path: Path) -> None:
         dst = tmp_path / "out.json"
         dst.write_text("old")
-        gistvault._write_adc(dst, b"new")
+        gistvault._write_output(dst, b"new")
         assert dst.read_bytes() == b"new"
         backups = list(tmp_path.glob("out.json.bak.*"))
         assert len(backups) == 1
@@ -120,11 +120,11 @@ class TestEncryptDecryptFile:
 
 class TestGistToken:
     def test_returns_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("ADC_GIST_TOKEN", "ghp_test123")
+        monkeypatch.setenv("GISTVAULT_TOKEN", "ghp_test123")
         assert gistvault._gist_token() == "ghp_test123"
 
     def test_missing_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("ADC_GIST_TOKEN", raising=False)
+        monkeypatch.delenv("GISTVAULT_TOKEN", raising=False)
         with pytest.raises(SystemExit):
             gistvault._gist_token()
 

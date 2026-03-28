@@ -6,29 +6,23 @@
 # ]
 # ///
 """
-Encrypt/decrypt the gcloud ADC file with a password.
+Encrypted secret storage backed by GitHub Gists.
 
 Usage:
-    # Encrypt ADC -> local encrypted file
-    ./adc.py encrypt -p mypass -o adc.enc
+    # Encrypt a file
+    ./gistvault.py encrypt -p mypass -i secret.json -o secret.enc
 
-    # Decrypt local encrypted file -> ADC
-    ./adc.py decrypt -p mypass -i adc.enc
+    # Decrypt a file
+    ./gistvault.py decrypt -p mypass -i secret.enc -o secret.json
 
-    # Upload ADC (encrypted) to a GitHub Gist
-    ./adc.py upload -p mypass
+    # Upload a file (encrypted) to a GitHub Gist
+    ./gistvault.py upload -p mypass -i secret.json
 
-    # Upload a specific file instead of the default ADC path
-    ./adc.py upload -p mypass -i /path/to/credentials.json
-
-    # Download from GitHub Gist and decrypt -> ADC
-    ./adc.py download -p mypass
-
-    # Download and decrypt to a specific path
-    ./adc.py download -p mypass -o /path/to/credentials.json
+    # Download from GitHub Gist and decrypt
+    ./gistvault.py download -p mypass -o secret.json
 
 If --password is omitted, you will be prompted (recommended, avoids shell history).
-Upload/download require ADC_GIST_TOKEN env var (GitHub token with 'gist' scope).
+Upload/download require GISTVAULT_TOKEN env var (GitHub token with 'gist' scope).
 """
 
 from __future__ import annotations
@@ -49,10 +43,9 @@ from typing import Any
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-ADC_PATH = Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
 SALT_LEN = 16
-GIST_FILENAME = "adc.enc"
-GIST_DESCRIPTION = "adc-crypt"
+GIST_FILENAME = "gistvault.enc"
+GIST_DESCRIPTION = "gistvault"
 GITHUB_API = "https://api.github.com"
 # Scrypt params: n=2**17, r=8, p=1  (~128MB memory, strong against GPU attacks)
 SCRYPT_N = 2**17
@@ -67,9 +60,9 @@ def derive_key(password: str, salt: bytes) -> bytes:
 
 
 def _gist_token() -> str:
-    token = os.environ.get("ADC_GIST_TOKEN")
+    token = os.environ.get("GISTVAULT_TOKEN")
     if not token:
-        sys.exit("Set ADC_GIST_TOKEN env var to a GitHub token with 'gist' scope.")
+        sys.exit("Set GISTVAULT_TOKEN env var to a GitHub token with 'gist' scope.")
     return token
 
 
@@ -106,8 +99,7 @@ def _find_gist(token: str, full: bool = False) -> dict[str, Any] | None:
 
 def _read_source(src: Path) -> bytes:
     if not src.exists():
-        sys.exit(f"Source file not found: {src}\n"
-                 f"Run 'gcloud auth application-default login' first.")
+        sys.exit(f"Source file not found: {src}")
     return src.read_bytes()
 
 
@@ -133,7 +125,7 @@ def _decrypt_blob(password: str, blob_text: str) -> bytes:
         sys.exit("Decryption failed: wrong password or corrupted data.")
 
 
-def _write_adc(dst: Path, plaintext: bytes) -> None:
+def _write_output(dst: Path, plaintext: bytes) -> None:
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists():
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -167,7 +159,7 @@ def download(password: str, dst: Path) -> None:
     if not gist:
         sys.exit(f"No gist found with file '{GIST_FILENAME}'.")
     plaintext = _decrypt_blob(password, gist["files"][GIST_FILENAME]["content"])
-    _write_adc(dst, plaintext)
+    _write_output(dst, plaintext)
     print(f"Decrypted gist -> {dst}")
 
 
@@ -182,23 +174,23 @@ def decrypt(password: str, in_file: Path, dst: Path) -> None:
     if not in_file.exists():
         sys.exit(f"Encrypted file not found: {in_file}")
     plaintext = _decrypt_blob(password, in_file.read_text())
-    _write_adc(dst, plaintext)
+    _write_output(dst, plaintext)
     print(f"Decrypted {in_file} -> {dst}")
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Encrypt/decrypt gcloud ADC file.")
+    p = argparse.ArgumentParser(description="Encrypted secret storage backed by GitHub Gists.")
     p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download"])
     p.add_argument("-p", "--password",
                    help="Password (omit to be prompted securely)")
     p.add_argument("-i", "--input", type=Path, default=None,
                    help="Input file path. "
-                        "encrypt/upload: plaintext source (default: ADC path). "
-                        "decrypt: encrypted file (default: ./adc.enc).")
+                        "encrypt/upload: plaintext source. "
+                        "decrypt: encrypted file.")
     p.add_argument("-o", "--output", type=Path, default=None,
                    help="Output file path. "
-                        "encrypt: encrypted file (default: ./adc.enc). "
-                        "decrypt/download: plaintext destination (default: ADC path).")
+                        "encrypt: encrypted file. "
+                        "decrypt/download: plaintext destination.")
     args = p.parse_args()
 
     password = args.password or getpass.getpass("Password: ")
@@ -206,13 +198,21 @@ def main() -> None:
         sys.exit("Password cannot be empty.")
 
     if args.option == "encrypt":
-        encrypt(password, args.output or Path("adc.enc"), args.input or ADC_PATH)
+        if not args.input or not args.output:
+            p.error("encrypt requires both --input and --output")
+        encrypt(password, args.output, args.input)
     elif args.option == "decrypt":
-        decrypt(password, args.input or Path("adc.enc"), args.output or ADC_PATH)
+        if not args.input or not args.output:
+            p.error("decrypt requires both --input and --output")
+        decrypt(password, args.input, args.output)
     elif args.option == "upload":
-        upload(password, args.input or ADC_PATH)
+        if not args.input:
+            p.error("upload requires --input")
+        upload(password, args.input)
     elif args.option == "download":
-        download(password, args.output or ADC_PATH)
+        if not args.output:
+            p.error("download requires --output")
+        download(password, args.output)
 
 
 if __name__ == "__main__":

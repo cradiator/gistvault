@@ -24,4 +24,4 @@ Encrypted secret storage backed by GitHub Gists.
 
 ## Environment
 
-- `ADC_GIST_TOKEN` — GitHub personal access token with `gist` scope (required for upload/download/list/delete)
+- `GISTVAULT_TOKEN` — GitHub personal access token with `gist` scope (required for upload/download/list/delete)
