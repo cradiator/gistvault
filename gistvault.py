@@ -8,24 +8,48 @@
 """
 Encrypted secret storage backed by GitHub Gists.
 
-Usage:
+Commands:
+    encrypt   Encrypt a local file.
+    decrypt   Decrypt a local encrypted file.
+    upload    Encrypt and upload a file to a GitHub Gist.
+    download  Download and decrypt a file from a GitHub Gist.
+    list      List all encrypted files stored in GitHub Gists.
+    delete    Delete an encrypted file from GitHub Gists.
+
+Usage examples:
     # Encrypt a file locally
     ./gistvault.py encrypt -p mypass -i secret.json -o secret.enc
 
-    # Decrypt a local file
+    # Decrypt a local file (explicit output)
     ./gistvault.py decrypt -p mypass -i secret.enc -o secret.json
 
-    # Upload a file (encrypted) to a GitHub Gist
+    # Decrypt using the saved output path (prompts for confirmation)
+    ./gistvault.py decrypt -p mypass -i secret.enc
+
+    # Upload a file (encrypted as secret.json.enc in a secret gist)
     ./gistvault.py upload -p mypass -i secret.json
 
-    # Download from GitHub Gist by name and decrypt
-    ./gistvault.py download -p mypass -n secret.json
+    # Re-upload updates the existing gist automatically
+    ./gistvault.py upload -p mypass -i secret.json
 
-    # List all encrypted files in GitHub Gists
+    # List all stored files
     ./gistvault.py list
 
-If --password is omitted, you will be prompted (recommended, avoids shell history).
-Upload/download/list require GISTVAULT_TOKEN env var (GitHub token with 'gist' scope).
+    # Download by name (prompts for output path if --output omitted)
+    ./gistvault.py download -p mypass -n secret.json
+    ./gistvault.py download -p mypass -n secret.json -o ~/restored.json
+
+    # Delete a stored file (prompts for confirmation)
+    ./gistvault.py delete -n secret.json
+
+Notes:
+    - If --password is omitted, you will be prompted securely.
+    - upload/download/list/delete require GISTVAULT_TOKEN env var
+      (GitHub personal access token with 'gist' scope).
+    - Each uploaded file is stored as a separate secret (unlisted) gist.
+    - The gist filename is <input_name>.enc (e.g. secret.json -> secret.json.enc).
+    - Encrypted files embed the original input/output paths. When downloading
+      without --output, the saved path is shown for confirmation.
 """
 
 from __future__ import annotations
@@ -274,21 +298,36 @@ def decrypt(password: str, in_file: Path, dst: Path | None) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Encrypted secret storage backed by GitHub Gists.")
-    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download", "list", "delete"])
+    p = argparse.ArgumentParser(
+        description="Encrypted secret storage backed by GitHub Gists.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "commands:\n"
+            "  encrypt   Encrypt a local file             (requires -i, -o)\n"
+            "  decrypt   Decrypt a local encrypted file   (requires -i; -o optional)\n"
+            "  upload    Encrypt and push to GitHub Gist   (requires -i)\n"
+            "  download  Pull from GitHub Gist and decrypt (requires -n; -o optional)\n"
+            "  list      List all encrypted gist entries\n"
+            "  delete    Delete an encrypted gist entry    (requires -n)\n"
+            "\n"
+            "environment:\n"
+            "  GISTVAULT_TOKEN  GitHub PAT with 'gist' scope (required for gist commands)"
+        ),
+    )
+    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download", "list", "delete"],
+                   metavar="command",
+                   help="{encrypt,decrypt,upload,download,list,delete}")
     p.add_argument("-p", "--password",
-                   help="Password (omit to be prompted securely)")
+                   help="encryption password (omit to be prompted securely)")
     p.add_argument("-i", "--input", type=Path, default=None,
-                   help="Input file path. "
-                        "encrypt/upload: plaintext source. "
-                        "decrypt: encrypted file.")
+                   help="input file path (encrypt/upload: plaintext source; "
+                        "decrypt: encrypted file)")
     p.add_argument("-o", "--output", type=Path, default=None,
-                   help="Output file path. "
-                        "encrypt: encrypted file. "
-                        "decrypt/download: plaintext destination.")
+                   help="output file path (encrypt: encrypted file; "
+                        "decrypt/download: plaintext destination)")
     p.add_argument("-n", "--name", default=None,
-                   help="Gist filename (for download/delete). "
-                        "e.g. 'secret.json' or 'secret.json.enc'.")
+                   help="gist entry name for download/delete "
+                        "(e.g. 'secret.json' or 'secret.json.enc')")
     args = p.parse_args()
 
     if args.option == "list":
