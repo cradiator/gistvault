@@ -370,6 +370,25 @@ def main() -> None:
         rename(args.name, args.new_name)
         return
 
+    # Validate required params before prompting for password
+    missing: list[str] = []
+    if args.option == "encrypt":
+        if not args.input:
+            missing.append("--input")
+        if not args.output:
+            missing.append("--output")
+    elif args.option == "decrypt":
+        if not args.input:
+            missing.append("--input")
+    elif args.option == "upload":
+        if not args.input:
+            missing.append("--input")
+    elif args.option == "download":
+        if not args.name:
+            missing.append("--name")
+    if missing:
+        p.error(f"{args.option} requires {', '.join(missing)}")
+
     password = args.password or getpass.getpass("Password: ")
     if not password:
         sys.exit("Password cannot be empty.")
@@ -380,20 +399,12 @@ def main() -> None:
             sys.exit("Passwords do not match.")
 
     if args.option == "encrypt":
-        if not args.input or not args.output:
-            p.error("encrypt requires both --input and --output")
         encrypt(password, args.output, args.input)
     elif args.option == "decrypt":
-        if not args.input:
-            p.error("decrypt requires --input")
         decrypt(password, args.input, args.output)
     elif args.option == "upload":
-        if not args.input:
-            p.error("upload requires --input")
         upload(password, args.input, args.new_name)
     elif args.option == "download":
-        if not args.name:
-            p.error("download requires --name")
         download(password, args.name, args.output)
 
 
