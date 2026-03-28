@@ -26,6 +26,8 @@ gistvault upload -i secret.json
 gistvault download -n secret.json
 ```
 
+> **Note:** `uv` caches remote scripts. After an update, run `uv cache clean` to fetch the latest version.
+
 ## Requirements
 
 - Python >= 3.13
