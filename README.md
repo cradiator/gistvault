@@ -15,15 +15,15 @@ uv run https://raw.githubusercontent.com/cradiator/gistvault/main/gistvault.py l
 To install as a command alias, add to your `~/.zshrc` or `~/.bashrc`:
 
 ```bash
-alias gistvault='uv run https://raw.githubusercontent.com/cradiator/gistvault/main/gistvault.py'
+alias gv='uv run https://raw.githubusercontent.com/cradiator/gistvault/main/gistvault.py'
 ```
 
 Then use it anywhere:
 
 ```bash
-gistvault list
-gistvault upload -i secret.json
-gistvault download -n secret.json
+gv list
+gv upload -i secret.json
+gv download -n secret.json
 ```
 
 > **Note:** `uv` caches remote scripts. After an update, run `uv cache clean` to fetch the latest version.
