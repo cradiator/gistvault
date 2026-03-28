@@ -12,6 +12,20 @@ Run directly without downloading (requires [uv](https://docs.astral.sh/uv/)):
 uv run https://raw.githubusercontent.com/cradiator/gistvault/main/gistvault.py list
 ```
 
+To install as a command alias, add to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+alias gistvault='uv run https://raw.githubusercontent.com/cradiator/gistvault/main/gistvault.py'
+```
+
+Then use it anywhere:
+
+```bash
+gistvault list
+gistvault upload -i secret.json
+gistvault download -n secret.json
+```
+
 ## Requirements
 
 - Python >= 3.13
