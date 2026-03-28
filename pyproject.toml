@@ -1,7 +1,13 @@
 [project]
-name = "adc"
+name = "gistvault"
 version = "0.1.0"
-description = "Add your description here"
+description = "Encrypted secret storage backed by GitHub Gists"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
+
+[tool.mypy]
+strict = true
+
+[tool.ruff]
+target-version = "py313"
