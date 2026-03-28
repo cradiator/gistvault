@@ -4,6 +4,14 @@ Encrypted secret storage backed by GitHub Gists.
 
 A single-script CLI tool that encrypts files locally and syncs them via secret (unlisted) GitHub Gists. No gist IDs to memorize -- files are discovered automatically by name.
 
+## Quick start
+
+Run directly without downloading (requires [uv](https://docs.astral.sh/uv/)):
+
+```bash
+uv run https://raw.githubusercontent.com/cradiator/gistvault/main/gistvault.py list
+```
+
 ## Requirements
 
 - Python >= 3.13
