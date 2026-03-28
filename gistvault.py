@@ -31,6 +31,8 @@ If --password is omitted, you will be prompted (recommended, avoids shell histor
 Upload/download require ADC_GIST_TOKEN env var (GitHub token with 'gist' scope).
 """
 
+from __future__ import annotations
+
 import argparse
 import base64
 import getpass
@@ -42,6 +44,7 @@ import urllib.request
 import urllib.error
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
@@ -71,7 +74,7 @@ def _gist_token() -> str:
 
 
 def _github_request(method: str, url: str, token: str,
-                    data: dict | None = None) -> dict:
+                    data: dict[str, Any] | None = None) -> Any:
     body = json.dumps(data).encode() if data else None
     req = urllib.request.Request(url, data=body, method=method, headers={
         "Authorization": f"token {token}",
@@ -85,17 +88,18 @@ def _github_request(method: str, url: str, token: str,
         sys.exit(f"GitHub API error {e.code}: {e.read().decode()}")
 
 
-def _find_gist(token: str, full: bool = False) -> dict | None:
+def _find_gist(token: str, full: bool = False) -> dict[str, Any] | None:
     page = 1
     while True:
-        gists = _github_request(
+        gists: list[dict[str, Any]] = _github_request(
             "GET", f"{GITHUB_API}/gists?per_page=100&page={page}", token)
         if not gists:
             return None
         for g in gists:
             if GIST_FILENAME in g.get("files", {}):
                 if full:
-                    return _github_request("GET", g["url"], token)
+                    result: dict[str, Any] = _github_request("GET", g["url"], token)
+                    return result
                 return g
         page += 1
 
@@ -144,7 +148,7 @@ def upload(password: str, src: Path) -> None:
     blob = _encrypt_blob(password, _read_source(src))
     gh_token = _gist_token()
     existing = _find_gist(gh_token)
-    payload = {
+    payload: dict[str, Any] = {
         "description": GIST_DESCRIPTION,
         "files": {GIST_FILENAME: {"content": blob}},
     }
