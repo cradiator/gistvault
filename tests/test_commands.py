@@ -205,3 +205,73 @@ def test_delete_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(SystemExit):
         gistvault.delete("nonexistent.json")
+
+
+def test_rename(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_request(
+        method: str, url: str, token: str, data: dict[str, Any] | None = None
+    ) -> dict[str, str]:
+        calls.append((method, url))
+        return {}
+
+    gist = {
+        "id": "abc",
+        "url": "https://api.github.com/gists/abc",
+        "files": {"old.json.enc": {"content": "blob"}},
+    }
+    monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
+    monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: gist)
+    monkeypatch.setattr(gistvault, "_github_request", fake_request)
+
+    gistvault.rename("old.json", "new.json")
+    assert calls[0][0] == "PATCH"
+
+
+def test_rename_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
+    monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: None)
+
+    with pytest.raises(SystemExit):
+        gistvault.rename("nope.json", "new.json")
+
+
+def test_password_confirmation_mismatch(
+    sample_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    passwords = iter(["mypass", "different"])
+    monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
+    enc = tmp_path / "out.enc"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["gistvault.py", "encrypt", "-i", str(sample_file), "-o", str(enc)],
+    )
+    with pytest.raises(SystemExit):
+        gistvault.main()
+
+
+def test_password_confirmation_match(
+    sample_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    passwords = iter(["mypass", "mypass"])
+    monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
+    enc = tmp_path / "out.enc"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["gistvault.py", "encrypt", "-i", str(sample_file), "-o", str(enc)],
+    )
+    gistvault.main()
+    assert enc.exists()
+
+
+def test_password_flag_skips_confirmation(
+    sample_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enc = tmp_path / "out.enc"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["gistvault.py", "encrypt", "-p", "mypass", "-i", str(sample_file), "-o", str(enc)],
+    )
+    gistvault.main()
+    assert enc.exists()

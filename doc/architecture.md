@@ -13,7 +13,7 @@ gistvault.py (single file)
 ├── Path helpers       (_compact_path, _expand_path)
 ├── File I/O layer     (_read_source, _write_output)
 ├── GitHub Gist layer  (_gist_token, _github_request, _find_gist, _find_all_gists)
-└── Commands           (encrypt, decrypt, upload, download, list_gists, delete)
+└── Commands           (encrypt, decrypt, upload, download, list_gists, delete, rename)
 ```
 
 ### CLI Layer
@@ -126,10 +126,17 @@ GitHub Gist API ──▶ _find_all_gists ──▶ print filename, gist ID, upd
 --name ──▶ _find_gist ──▶ confirm prompt ──▶ DELETE gist via API
 ```
 
+### rename
+
+```
+--name + --new-name ──▶ _find_gist (full) ──▶ PATCH gist (rename file)
+```
+
 ## Security Model
 
 - **Encryption at rest**: all stored data (local files, gists) is encrypted
 - **Password never stored**: derived key exists only in memory during execution
+- **Password confirmation**: encrypt/upload prompt for password twice when entered interactively (skipped with `-p` flag)
 - **Gist visibility**: secret/unlisted — even if discovered, content is an opaque encrypted blob
 - **Backup safety**: existing files are backed up before overwrite, never silently lost
 

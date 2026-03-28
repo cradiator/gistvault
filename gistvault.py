@@ -259,6 +259,23 @@ def list_gists() -> None:
             print(f"  {f}  (gist: {g['id']}, updated: {updated})")
 
 
+def rename(old_name: str, new_name: str) -> None:
+    old_filename = _gist_filename(old_name)
+    new_filename = _gist_filename(new_name)
+    gh_token = _gist_token()
+    gist = _find_gist(gh_token, old_filename, full=True)
+    if not gist:
+        sys.exit(f"No gist found with file '{old_filename}'.")
+    content = gist["files"][old_filename]["content"]
+    payload: dict[str, Any] = {
+        "files": {
+            old_filename: {"filename": new_filename, "content": content},
+        },
+    }
+    _github_request("PATCH", gist["url"], gh_token, payload)
+    print(f"Renamed {old_filename} -> {new_filename}")
+
+
 def delete(name: str) -> None:
     filename = _gist_filename(name)
     gh_token = _gist_token()
@@ -309,14 +326,15 @@ def main() -> None:
             "  download  Pull from GitHub Gist and decrypt (requires -n; -o optional)\n"
             "  list      List all encrypted gist entries\n"
             "  delete    Delete an encrypted gist entry    (requires -n)\n"
+            "  rename    Rename a gist entry               (requires -n, --new-name)\n"
             "\n"
             "environment:\n"
             "  GISTVAULT_TOKEN  GitHub PAT with 'gist' scope (required for gist commands)"
         ),
     )
-    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download", "list", "delete"],
+    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download", "list", "delete", "rename"],
                    metavar="command",
-                   help="{encrypt,decrypt,upload,download,list,delete}")
+                   help="{encrypt,decrypt,upload,download,list,delete,rename}")
     p.add_argument("-p", "--password",
                    help="encryption password (omit to be prompted securely)")
     p.add_argument("-i", "--input", type=Path, default=None,
@@ -326,8 +344,10 @@ def main() -> None:
                    help="output file path (encrypt: encrypted file; "
                         "decrypt/download: plaintext destination)")
     p.add_argument("-n", "--name", default=None,
-                   help="gist entry name for download/delete "
+                   help="gist entry name for download/delete/rename "
                         "(e.g. 'secret.json' or 'secret.json.enc')")
+    p.add_argument("--new-name", default=None,
+                   help="new name for rename command")
     args = p.parse_args()
 
     if args.option == "list":
@@ -338,10 +358,20 @@ def main() -> None:
             p.error("delete requires --name")
         delete(args.name)
         return
+    if args.option == "rename":
+        if not args.name or not args.new_name:
+            p.error("rename requires --name and --new-name")
+        rename(args.name, args.new_name)
+        return
 
     password = args.password or getpass.getpass("Password: ")
     if not password:
         sys.exit("Password cannot be empty.")
+
+    if args.option in ("encrypt", "upload") and not args.password:
+        confirm = getpass.getpass("Confirm password: ")
+        if password != confirm:
+            sys.exit("Passwords do not match.")
 
     if args.option == "encrypt":
         if not args.input or not args.output:
