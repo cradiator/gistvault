@@ -78,7 +78,7 @@ def test_upload_creates_new(
         return {"id": "new123"}
 
     monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
-    monkeypatch.setattr(gistvault, "_find_gist", lambda *a: None)
+    monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: None)
     monkeypatch.setattr(gistvault, "_github_request", fake_request)
 
     gistvault.upload("pw", sample_file)
@@ -98,7 +98,7 @@ def test_upload_updates_existing(
 
     monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
     monkeypatch.setattr(
-        gistvault, "_find_gist", lambda *a: {"id": "exist", "url": "http://x"}
+        gistvault, "_find_gist", lambda *a, **kw: {"id": "exist", "url": "http://x"}
     )
     monkeypatch.setattr(gistvault, "_github_request", fake_request)
 
@@ -112,22 +112,23 @@ def test_download_no_gist(
     monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
     monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: None)
     with pytest.raises(SystemExit):
-        gistvault.download("pw", tmp_path / "out.json")
+        gistvault.download("pw", "secret.json", tmp_path / "out.json")
 
 
 def test_download_with_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     src = tmp_path / "orig.json"
+    filename = "orig.json.enc"
     plaintext = b'{"secret": true}'
     blob = gistvault._encrypt_blob("pw", plaintext, input_path=src, output_path=src)
-    gist = {"files": {gistvault.GIST_FILENAME: {"content": blob}}}
+    gist = {"files": {filename: {"content": blob}}}
 
     monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
     monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: gist)
 
     dst = tmp_path / "out.json"
-    gistvault.download("pw", dst)
+    gistvault.download("pw", "orig.json", dst)
     assert dst.read_bytes() == plaintext
 
 
@@ -135,15 +136,16 @@ def test_download_with_confirmation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     src = tmp_path / "orig.json"
+    filename = "orig.json.enc"
     plaintext = b'{"secret": true}'
     blob = gistvault._encrypt_blob("pw", plaintext, input_path=src, output_path=src)
-    gist = {"files": {gistvault.GIST_FILENAME: {"content": blob}}}
+    gist = {"files": {filename: {"content": blob}}}
 
     monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
     monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: gist)
     monkeypatch.setattr("builtins.input", lambda _: "y")
 
-    gistvault.download("pw", None)
+    gistvault.download("pw", "orig.json", None)
     assert src.read_bytes() == plaintext
 
 
@@ -151,13 +153,14 @@ def test_download_aborts_on_no(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     src = tmp_path / "orig.json"
+    filename = "orig.json.enc"
     plaintext = b'{"secret": true}'
     blob = gistvault._encrypt_blob("pw", plaintext, input_path=src, output_path=src)
-    gist = {"files": {gistvault.GIST_FILENAME: {"content": blob}}}
+    gist = {"files": {filename: {"content": blob}}}
 
     monkeypatch.setattr(gistvault, "_gist_token", lambda: "tok")
     monkeypatch.setattr(gistvault, "_find_gist", lambda *a, **kw: gist)
     monkeypatch.setattr("builtins.input", lambda _: "n")
 
     with pytest.raises(SystemExit):
-        gistvault.download("pw", None)
+        gistvault.download("pw", "orig.json", None)

@@ -12,8 +12,8 @@ gistvault.py (single file)
 ├── Crypto layer       (derive_key, _encrypt_blob, _decrypt_blob)
 ├── Path helpers       (_compact_path, _expand_path)
 ├── File I/O layer     (_read_source, _write_output)
-├── GitHub Gist layer  (_gist_token, _github_request, _find_gist)
-└── Commands           (encrypt, decrypt, upload, download)
+├── GitHub Gist layer  (_gist_token, _github_request, _find_gist, _find_all_gists)
+└── Commands           (encrypt, decrypt, upload, download, list_gists)
 ```
 
 ### CLI Layer
@@ -61,7 +61,9 @@ Password + Random Salt (16 bytes)
 
 - Uses `urllib` (stdlib) — no external HTTP dependencies
 - Auth via `GISTVAULT_TOKEN` env var (GitHub PAT with `gist` scope)
-- `_find_gist`: paginates through user's gists, matches by filename (`gistvault.enc`)
+- **Multi-file**: each uploaded file gets its own gist, named `<filename>.enc`
+- `_find_gist(token, filename)`: paginates through user's gists, matches by description (`gistvault`) and filename
+- `_find_all_gists(token)`: returns all gists with description `gistvault`
 - Gists are created as **secret (unlisted)** — not searchable, but accessible via URL
 
 ## Data Flow
@@ -109,6 +111,13 @@ GitHub Gist API ──▶ _decrypt_blob ──▶ envelope
                          └───────┬───────┘
                                  ▼
                           _write_output ──▶ plaintext file
+```
+
+### list
+
+```
+GitHub Gist API ──▶ _find_all_gists ──▶ print filename, gist ID, updated date
+(filter by description)
 ```
 
 ## Security Model

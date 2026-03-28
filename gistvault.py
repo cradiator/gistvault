@@ -9,20 +9,23 @@
 Encrypted secret storage backed by GitHub Gists.
 
 Usage:
-    # Encrypt a file
+    # Encrypt a file locally
     ./gistvault.py encrypt -p mypass -i secret.json -o secret.enc
 
-    # Decrypt a file
+    # Decrypt a local file
     ./gistvault.py decrypt -p mypass -i secret.enc -o secret.json
 
     # Upload a file (encrypted) to a GitHub Gist
     ./gistvault.py upload -p mypass -i secret.json
 
-    # Download from GitHub Gist and decrypt
-    ./gistvault.py download -p mypass -o secret.json
+    # Download from GitHub Gist by name and decrypt
+    ./gistvault.py download -p mypass -n secret.json
+
+    # List all encrypted files in GitHub Gists
+    ./gistvault.py list
 
 If --password is omitted, you will be prompted (recommended, avoids shell history).
-Upload/download require GISTVAULT_TOKEN env var (GitHub token with 'gist' scope).
+Upload/download/list require GISTVAULT_TOKEN env var (GitHub token with 'gist' scope).
 """
 
 from __future__ import annotations
@@ -44,7 +47,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 SALT_LEN = 16
-GIST_FILENAME = "gistvault.enc"
+GIST_ENC_SUFFIX = ".enc"
 GIST_DESCRIPTION = "gistvault"
 GITHUB_API = "https://api.github.com"
 # Scrypt params: n=2**17, r=8, p=1  (~128MB memory, strong against GPU attacks)
@@ -81,7 +84,13 @@ def _github_request(method: str, url: str, token: str,
         sys.exit(f"GitHub API error {e.code}: {e.read().decode()}")
 
 
-def _find_gist(token: str, full: bool = False) -> dict[str, Any] | None:
+def _gist_filename(name: str) -> str:
+    if name.endswith(GIST_ENC_SUFFIX):
+        return name
+    return name + GIST_ENC_SUFFIX
+
+
+def _find_gist(token: str, filename: str, full: bool = False) -> dict[str, Any] | None:
     page = 1
     while True:
         gists: list[dict[str, Any]] = _github_request(
@@ -89,12 +98,27 @@ def _find_gist(token: str, full: bool = False) -> dict[str, Any] | None:
         if not gists:
             return None
         for g in gists:
-            if GIST_FILENAME in g.get("files", {}):
+            if g.get("description") == GIST_DESCRIPTION and filename in g.get("files", {}):
                 if full:
                     result: dict[str, Any] = _github_request("GET", g["url"], token)
                     return result
                 return g
         page += 1
+
+
+def _find_all_gists(token: str) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        gists: list[dict[str, Any]] = _github_request(
+            "GET", f"{GITHUB_API}/gists?per_page=100&page={page}", token)
+        if not gists:
+            break
+        for g in gists:
+            if g.get("description") == GIST_DESCRIPTION:
+                found.append(g)
+        page += 1
+    return found
 
 
 def _compact_path(p: Path) -> str:
@@ -158,28 +182,30 @@ def _write_output(dst: Path, plaintext: bytes) -> None:
 
 def upload(password: str, src: Path) -> None:
     plaintext = _read_source(src)
+    filename = _gist_filename(src.name)
     blob = _encrypt_blob(password, plaintext, input_path=src, output_path=src)
     gh_token = _gist_token()
-    existing = _find_gist(gh_token)
+    existing = _find_gist(gh_token, filename)
     payload: dict[str, Any] = {
         "description": GIST_DESCRIPTION,
-        "files": {GIST_FILENAME: {"content": blob}},
+        "files": {filename: {"content": blob}},
     }
     if existing:
         _github_request("PATCH", existing["url"], gh_token, payload)
-        print(f"Updated gist {existing['id']}")
+        print(f"Updated gist {existing['id']} ({filename})")
     else:
         payload["public"] = False
         result = _github_request("POST", f"{GITHUB_API}/gists", gh_token, payload)
-        print(f"Created gist {result['id']}")
+        print(f"Created gist {result['id']} ({filename})")
 
 
-def download(password: str, dst: Path | None) -> None:
+def download(password: str, name: str, dst: Path | None) -> None:
+    filename = _gist_filename(name)
     gh_token = _gist_token()
-    gist = _find_gist(gh_token, full=True)
+    gist = _find_gist(gh_token, filename, full=True)
     if not gist:
-        sys.exit(f"No gist found with file '{GIST_FILENAME}'.")
-    envelope = _decrypt_blob(password, gist["files"][GIST_FILENAME]["content"])
+        sys.exit(f"No gist found with file '{filename}'.")
+    envelope = _decrypt_blob(password, gist["files"][filename]["content"])
     data = base64.b64decode(envelope["data"])
     if dst is None:
         saved_output = envelope.get("output", "")
@@ -190,7 +216,20 @@ def download(password: str, dst: Path | None) -> None:
             sys.exit("Aborted.")
         dst = _expand_path(saved_output)
     _write_output(dst, data)
-    print(f"Decrypted gist -> {dst}")
+    print(f"Decrypted {filename} -> {dst}")
+
+
+def list_gists() -> None:
+    gh_token = _gist_token()
+    gists = _find_all_gists(gh_token)
+    if not gists:
+        print("No gistvault entries found.")
+        return
+    for g in gists:
+        files = list(g.get("files", {}).keys())
+        updated = g.get("updated_at", "")
+        for f in files:
+            print(f"  {f}  (gist: {g['id']}, updated: {updated})")
 
 
 def encrypt(password: str, out_file: Path, src: Path) -> None:
@@ -220,7 +259,7 @@ def decrypt(password: str, in_file: Path, dst: Path | None) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description="Encrypted secret storage backed by GitHub Gists.")
-    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download"])
+    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download", "list"])
     p.add_argument("-p", "--password",
                    help="Password (omit to be prompted securely)")
     p.add_argument("-i", "--input", type=Path, default=None,
@@ -231,7 +270,14 @@ def main() -> None:
                    help="Output file path. "
                         "encrypt: encrypted file. "
                         "decrypt/download: plaintext destination.")
+    p.add_argument("-n", "--name", default=None,
+                   help="Gist filename (for download). "
+                        "e.g. 'secret.json' or 'secret.json.enc'.")
     args = p.parse_args()
+
+    if args.option == "list":
+        list_gists()
+        return
 
     password = args.password or getpass.getpass("Password: ")
     if not password:
@@ -250,7 +296,9 @@ def main() -> None:
             p.error("upload requires --input")
         upload(password, args.input)
     elif args.option == "download":
-        download(password, args.output)
+        if not args.name:
+            p.error("download requires --name")
+        download(password, args.name, args.output)
 
 
 if __name__ == "__main__":
