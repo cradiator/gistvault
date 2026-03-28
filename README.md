@@ -35,7 +35,7 @@ gv download -n secret.json
 
 ## Setup
 
-1. Create a GitHub personal access token with `gist` scope:
+1. Create a GitHub personal access token with **only the `gist` scope** (no other permissions needed):
    **GitHub > Settings > Developer settings > Personal access tokens > Tokens (classic)**
 
 2. Add it to your shell profile:
