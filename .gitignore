@@ -1,5 +1,4 @@
 *.enc
-main.py
 .venv/
 __pycache__/
 *.pyc
