@@ -332,7 +332,8 @@ def main() -> None:
             "  GISTVAULT_TOKEN  GitHub PAT with 'gist' scope (required for gist commands)"
         ),
     )
-    p.add_argument("option", choices=["encrypt", "decrypt", "upload", "download", "list", "delete", "rename"],
+    p.add_argument("option", nargs="?", default=None,
+                   choices=["encrypt", "decrypt", "upload", "download", "list", "delete", "rename"],
                    metavar="command",
                    help="{encrypt,decrypt,upload,download,list,delete,rename}")
     p.add_argument("-p", "--password",
@@ -350,6 +351,10 @@ def main() -> None:
                    help="new name (upload: override gist filename; "
                         "rename: target name)")
     args = p.parse_args()
+
+    if not args.option:
+        p.print_help()
+        return
 
     if args.option == "list":
         list_gists()
