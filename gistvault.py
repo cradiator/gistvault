@@ -276,6 +276,7 @@ app = typer.Typer(
          "Environment: GISTVAULT_TOKEN — GitHub PAT with 'gist' scope "
          "(required for gist commands).",
     no_args_is_help=True,
+    add_completion=False,
 )
 
 def _get_password(password: str | None, confirm: bool = False) -> str:
