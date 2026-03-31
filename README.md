@@ -2,36 +2,22 @@
 
 Encrypted secret storage backed by GitHub Gists.
 
-A single-script CLI tool that encrypts files locally and syncs them via secret (unlisted) GitHub Gists. No gist IDs to memorize -- files are discovered automatically by name.
+A CLI tool (`gv`) that encrypts files locally and syncs them via secret (unlisted) GitHub Gists. No gist IDs to memorize -- files are discovered automatically by name.
 
 ## Quick start
 
-Run directly without downloading (requires [uv](https://docs.astral.sh/uv/)):
+Install with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv run https://raw.githubusercontent.com/cradiator/gistvault/main/gistvault.py list
+uv tool install git+https://github.com/cradiator/gistvault
 ```
 
-To install as a command alias, add to your `~/.zshrc` or `~/.bashrc`:
-
-```bash
-alias gv='uv run https://raw.githubusercontent.com/cradiator/gistvault/main/gistvault.py'
-```
-
-Then use it anywhere:
-
-```bash
-gv list
-gv upload -i secret.json
-gv download -n secret.json
-```
-
-> **Note:** `uv` caches remote scripts. After an update, run `uv cache clean` to fetch the latest version.
+This gives you the `gv` command globally.
 
 ## Requirements
 
 - Python >= 3.13
-- [uv](https://docs.astral.sh/uv/) (handles dependencies automatically)
+- [uv](https://docs.astral.sh/uv/)
 
 ## Setup
 
@@ -43,43 +29,38 @@ gv download -n secret.json
    export GISTVAULT_TOKEN="ghp_your_token_here"
    ```
 
-3. Make the script executable:
-   ```bash
-   chmod +x gistvault.py
-   ```
-
 ## Usage
 
 ```bash
 # Encrypt a file locally
-./gistvault.py encrypt -i secret.json -o secret.enc
+gv encrypt -i secret.json -o secret.enc
 
 # Decrypt a local file
-./gistvault.py decrypt -i secret.enc -o secret.json
+gv decrypt -i secret.enc -o secret.json
 
 # Decrypt using the saved output path (prompts for confirmation)
-./gistvault.py decrypt -i secret.enc
+gv decrypt -i secret.enc
 
 # Upload a file (encrypted) to a GitHub Gist
-./gistvault.py upload -i secret.json
+gv upload -i secret.json
 
 # Upload with a custom gist name
-./gistvault.py upload -i secret.json --new-name credentials.json
+gv upload -i secret.json --new-name credentials.json
 
 # List all stored files
-./gistvault.py list
+gv list
 
 # Download by name
-./gistvault.py download -n secret.json
+gv download -n secret.json
 
 # Download to a specific path
-./gistvault.py download -n secret.json -o ~/restored.json
+gv download -n secret.json -o ~/restored.json
 
 # Rename a gist entry
-./gistvault.py rename -n old.json --new-name new.json
+gv rename -n old.json --new-name new.json
 
 # Delete a stored file
-./gistvault.py delete -n secret.json
+gv delete -n secret.json
 ```
 
 If `--password` / `-p` is omitted, you will be prompted securely (recommended).
