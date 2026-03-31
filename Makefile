@@ -1,10 +1,10 @@
 .PHONY: lint typecheck test check
 
 lint:
-	uv run ruff check gistvault.py tests/
+	uv run ruff check src/gistvault/ tests/
 
 typecheck:
-	uv run mypy gistvault.py tests/
+	uv run mypy src/gistvault/ tests/
 
 test:
 	uv run pytest tests/ -v

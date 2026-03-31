@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-import gistvault
+import gistvault.gistvault as gistvault
 
 
 def test_encrypt_decrypt_roundtrip(sample_file: Path, tmp_path: Path) -> None:

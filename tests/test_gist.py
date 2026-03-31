@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-import gistvault
+import gistvault.gistvault as gistvault
 
 _TEST_FILENAME = "secret.json.enc"
 

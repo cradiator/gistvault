@@ -1,11 +1,3 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "cryptography>=42.0",
-#     "typer>=0.9.0",
-# ]
-# ///
 """Encrypted secret storage backed by GitHub Gists."""
 
 from __future__ import annotations
@@ -357,7 +349,3 @@ def cmd_rename(
 ) -> None:
     """Rename a gist entry."""
     rename(name, new_name)
-
-
-if __name__ == "__main__":
-    app()

@@ -4,8 +4,10 @@ Encrypted secret storage backed by GitHub Gists.
 
 ## Project structure
 
-- Single-script tool: `gistvault.py` (PEP 723 inline metadata, runnable via `uv run`)
-- This is a uv project — dev dependencies in `pyproject.toml`, runtime deps in script metadata (keep in sync)
+- src layout package: `src/gistvault/` with logic in `gistvault.py`, thin `__init__.py`, and `__main__.py`
+- CLI entry point: `gv` (installed via `uv tool install .` or `pip install .`)
+- This is a uv project — runtime deps in `[project.dependencies]`, dev deps in `[dependency-groups]`
+- Build backend: hatchling
 - Python >= 3.13
 - Tests in `tests/` — split by layer: `test_crypto.py`, `test_fileio.py`, `test_gist.py`, `test_commands.py`
 - Shared test fixtures in `tests/conftest.py`
@@ -15,7 +17,7 @@ Encrypted secret storage backed by GitHub Gists.
 
 Every major change must follow this flow:
 
-1. Write/modify code in `gistvault.py` (keep it as a single script)
+1. Write/modify code in `src/gistvault/gistvault.py`
 2. Write/update unit tests (every major function needs a test)
 3. Run `make check` (ruff + mypy strict + pytest) — all must pass
 4. Update `doc/architecture.md` if the change affects architecture, data flow, or adds commands
@@ -24,9 +26,9 @@ Every major change must follow this flow:
 
 ## Commands
 
-- Run: `uv run gistvault.py <command>`
-- Lint: `uv run ruff check gistvault.py tests/`
-- Type check: `uv run mypy gistvault.py tests/`
+- Run: `gv <command>` (after install) or `uv run gv <command>`
+- Lint: `uv run ruff check src/gistvault/ tests/`
+- Type check: `uv run mypy src/gistvault/ tests/`
 - Test: `uv run pytest tests/ -v`
 - All checks: `make check`
 
@@ -50,7 +52,7 @@ rename    Rename a gist entry               (-n, --new-name required)
 
 ## Key design decisions
 
-- **Single script**: everything lives in `gistvault.py`. No splitting into modules.
+- **Single module**: all logic lives in `src/gistvault/gistvault.py`. `__init__.py` re-exports `app` only.
 - **Multi-gist**: each uploaded file gets its own secret (unlisted) gist, named `<filename>.enc`
 - **Encrypted envelope**: the encrypted blob contains a JSON envelope with `input`, `output`, `timestamp`, and `data` (base64-encoded file content). All metadata is encrypted.
 - **Path compaction**: paths under `$HOME` are stored as `~/...` for portability across machines
@@ -65,6 +67,7 @@ rename    Rename a gist entry               (-n, --new-name required)
 
 - Use `pytest` as the test framework — no `unittest.mock`, use `monkeypatch` instead
 - Tests are plain functions (no classes), grouped by file/layer
+- Tests import `gistvault.gistvault as gistvault` to patch the actual module
 - Mock GitHub API calls via `monkeypatch.setattr` on `gistvault._github_request`, `gistvault._find_gist`, etc.
 - Use `tmp_path` fixture for file I/O tests
 - Use `capsys` for testing printed output

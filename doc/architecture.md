@@ -2,18 +2,21 @@
 
 ## Overview
 
-gistvault is a single-script CLI tool that encrypts files locally and syncs them via GitHub Gists. It uses password-based encryption so secrets can be stored on a public (unlisted) service safely.
+gistvault is a CLI tool (`gv`) that encrypts files locally and syncs them via GitHub Gists. It uses password-based encryption so secrets can be stored on a public (unlisted) service safely. Installable via `uv tool install .`.
 
 ## Components
 
 ```
-gistvault.py (single file)
-├── CLI layer          (typer app, subcommands)
-├── Crypto layer       (derive_key, _encrypt_blob, _decrypt_blob)
-├── Path helpers       (_compact_path, _expand_path)
-├── File I/O layer     (_read_source, _write_output)
-├── GitHub Gist layer  (_gist_token, _github_request, _find_gist, _find_all_gists)
-└── Commands           (encrypt, decrypt, upload, download, list_gists, delete, rename)
+src/gistvault/
+├── __init__.py        (re-exports app for entry point)
+├── __main__.py        (python -m gistvault support)
+└── gistvault.py       (all logic)
+    ├── CLI layer          (typer app, subcommands)
+    ├── Crypto layer       (derive_key, _encrypt_blob, _decrypt_blob)
+    ├── Path helpers       (_compact_path, _expand_path)
+    ├── File I/O layer     (_read_source, _write_output)
+    ├── GitHub Gist layer  (_gist_token, _github_request, _find_gist, _find_all_gists)
+    └── Commands           (encrypt, decrypt, upload, download, list_gists, delete, rename)
 ```
 
 ### CLI Layer
@@ -142,6 +145,6 @@ GitHub Gist API ──▶ _find_all_gists ──▶ print filename, gist ID, upd
 
 ## Dependencies
 
-- **Runtime**: `cryptography` (Fernet + Scrypt), `typer` (CLI framework) — declared in PEP 723 inline metadata
-- **Dev**: `pytest`, `mypy`, `ruff` — declared in `pyproject.toml`
+- **Runtime**: `cryptography` (Fernet + Scrypt), `typer` (CLI framework) — declared in `[project.dependencies]`
+- **Dev**: `pytest`, `mypy`, `ruff` — declared in `[dependency-groups]`
 - **No external HTTP library**: uses Python stdlib `urllib`

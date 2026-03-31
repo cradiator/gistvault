@@ -4,7 +4,20 @@ version = "0.1.0"
 description = "Encrypted secret storage backed by GitHub Gists"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "cryptography>=42.0",
+    "typer>=0.9.0",
+]
+
+[project.scripts]
+gv = "gistvault.gistvault:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gistvault"]
 
 [tool.mypy]
 strict = true
@@ -14,9 +27,7 @@ target-version = "py313"
 
 [dependency-groups]
 dev = [
-    "cryptography>=46.0.6",
     "mypy>=1.19.1",
     "pytest>=9.0.2",
     "ruff>=0.15.8",
-    "typer>=0.9.0",
 ]

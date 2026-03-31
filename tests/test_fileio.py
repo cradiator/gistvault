@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-import gistvault
+import gistvault.gistvault as gistvault
 
 
 def test_read_source(tmp_path: Path) -> None:

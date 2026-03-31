@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import gistvault
+import gistvault.gistvault as gistvault
 
 
 def test_derive_key_deterministic() -> None:
