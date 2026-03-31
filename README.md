@@ -33,34 +33,34 @@ This gives you the `gv` command globally.
 
 ```bash
 # Encrypt a file locally
-gv encrypt -i secret.json -o secret.enc
+gv encrypt secret.json -o secret.enc
 
 # Decrypt a local file
-gv decrypt -i secret.enc -o secret.json
+gv decrypt secret.enc -o secret.json
 
 # Decrypt using the saved output path (prompts for confirmation)
-gv decrypt -i secret.enc
+gv decrypt secret.enc
 
 # Upload a file (encrypted) to a GitHub Gist
-gv upload -i secret.json
+gv upload secret.json
 
 # Upload with a custom gist name
-gv upload -i secret.json --new-name credentials.json
+gv upload secret.json --new-name credentials.json
 
 # List all stored files
 gv list
 
 # Download by name
-gv download -n secret.json
+gv download secret.json
 
 # Download to a specific path
-gv download -n secret.json -o ~/restored.json
+gv download secret.json -o ~/restored.json
 
 # Rename a gist entry
-gv rename -n old.json --new-name new.json
+gv rename old.json new.json
 
 # Delete a stored file
-gv delete -n secret.json
+gv delete secret.json
 ```
 
 If `--password` / `-p` is omitted, you will be prompted securely (recommended).

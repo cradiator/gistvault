@@ -37,13 +37,13 @@ Individual Makefile targets: `make lint`, `make typecheck`, `make test`
 ## Script commands
 
 ```
-encrypt   Encrypt a local file             (-i, -o required)
-decrypt   Decrypt a local encrypted file   (-i required; -o optional, uses saved path)
-upload    Encrypt and push to GitHub Gist   (-i required)
-download  Pull from GitHub Gist and decrypt (-n required; -o optional, uses saved path)
+encrypt   Encrypt a local file             (FILE, -o required)
+decrypt   Decrypt a local encrypted file   (FILE; -o optional, uses saved path)
+upload    Encrypt and push to GitHub Gist   (FILE)
+download  Pull from GitHub Gist and decrypt (NAME; -o optional, uses saved path)
 list      List all encrypted gist entries
-delete    Delete an encrypted gist entry    (-n required)
-rename    Rename a gist entry               (-n, --new-name required)
+delete    Delete an encrypted gist entry    (NAME)
+rename    Rename a gist entry               (NAME NEW_NAME)
 ```
 
 ## Environment

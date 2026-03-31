@@ -286,7 +286,7 @@ def _get_password(password: str | None, confirm: bool = False) -> str:
 
 @app.command(name="encrypt")
 def cmd_encrypt(
-    input: Annotated[Path, typer.Option("--input", "-i", help="Plaintext source file.")],
+    input: Annotated[Path, typer.Argument(help="Plaintext source file.")],
     output: Annotated[Path, typer.Option("--output", "-o", help="Encrypted output file.")],
     password: Annotated[Optional[str], typer.Option("--password", "-p", help="Encryption password (omit to be prompted).")] = None,
 ) -> None:
@@ -297,7 +297,7 @@ def cmd_encrypt(
 
 @app.command(name="decrypt")
 def cmd_decrypt(
-    input: Annotated[Path, typer.Option("--input", "-i", help="Encrypted file to decrypt.")],
+    input: Annotated[Path, typer.Argument(help="Encrypted file to decrypt.")],
     output: Annotated[Optional[Path], typer.Option("--output", "-o", help="Output path (uses saved path if omitted).")] = None,
     password: Annotated[Optional[str], typer.Option("--password", "-p", help="Encryption password (omit to be prompted).")] = None,
 ) -> None:
@@ -308,7 +308,7 @@ def cmd_decrypt(
 
 @app.command(name="upload")
 def cmd_upload(
-    input: Annotated[Path, typer.Option("--input", "-i", help="Plaintext file to encrypt and upload.")],
+    input: Annotated[Path, typer.Argument(help="Plaintext file to encrypt and upload.")],
     password: Annotated[Optional[str], typer.Option("--password", "-p", help="Encryption password (omit to be prompted).")] = None,
     new_name: Annotated[Optional[str], typer.Option("--new-name", help="Override gist filename.")] = None,
 ) -> None:
@@ -319,7 +319,7 @@ def cmd_upload(
 
 @app.command(name="download")
 def cmd_download(
-    name: Annotated[str, typer.Option("--name", "-n", help="Gist entry name.")],
+    name: Annotated[str, typer.Argument(help="Gist entry name.")],
     output: Annotated[Optional[Path], typer.Option("--output", "-o", help="Output path (uses saved path if omitted).")] = None,
     password: Annotated[Optional[str], typer.Option("--password", "-p", help="Encryption password (omit to be prompted).")] = None,
 ) -> None:
@@ -336,7 +336,7 @@ def cmd_list() -> None:
 
 @app.command(name="delete")
 def cmd_delete(
-    name: Annotated[str, typer.Option("--name", "-n", help="Gist entry name to delete.")],
+    name: Annotated[str, typer.Argument(help="Gist entry name to delete.")],
 ) -> None:
     """Delete an encrypted file from GitHub Gists."""
     delete(name)
@@ -344,8 +344,8 @@ def cmd_delete(
 
 @app.command(name="rename")
 def cmd_rename(
-    name: Annotated[str, typer.Option("--name", "-n", help="Current gist entry name.")],
-    new_name: Annotated[str, typer.Option("--new-name", help="New name for the gist entry.")],
+    name: Annotated[str, typer.Argument(help="Current gist entry name.")],
+    new_name: Annotated[str, typer.Argument(help="New name for the gist entry.")],
 ) -> None:
     """Rename a gist entry."""
     rename(name, new_name)
